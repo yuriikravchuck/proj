@@ -9,7 +9,7 @@ class Product extends ActiveRecord
     public function rules()
     {
         return [
-            //[['hash', 'color_id'], 'required'],
+            [['hash'], 'safe'],
             [['color_id'], 'integer'],
         ];
     }
@@ -33,6 +33,10 @@ class Product extends ActiveRecord
 
     public function getColor() {
         return $this->hasOne(Color::className(), ['color_id' => 'color_id']);
+    }
+
+    public function getSize() {
+        return $this->hasOne(Size::className(), ['name' => 'product_id']);
     }
 
     public function getColors()

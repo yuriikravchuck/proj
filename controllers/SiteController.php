@@ -66,6 +66,7 @@ class SiteController extends Controller
     public function actionUpdate()
     {
         try {
+            $propertyName = Yii::$app->request->get('model');
             $property = self::getPropertyByName(Yii::$app->request->get('model'));
         } catch (ErrorException $e) {
             return $this->asJson([
@@ -87,7 +88,7 @@ class SiteController extends Controller
             ]);
         }
 
-        $this->saveModel($updateModel, $property, Yii::$app->request->get('model'), Yii::$app->request->get('info'), true);
+        $this->saveModel($updateModel, $property, $propertyName, Yii::$app->request->get('info'), true);
     }
 
     public function actionView()
@@ -153,6 +154,49 @@ class SiteController extends Controller
         }
 
 
+    }
+
+    public function actionDelete()
+    {
+        try {
+            $propertyName = Yii::$app->request->get('model');
+            $property = self::getPropertyByName($propertyName);
+        } catch (ErrorException $e) {
+            return $this->asJson([
+                'status' => 400,
+                'errors' => $e->getMessage()
+            ]);
+        }
+
+        $condition = Yii::$app->request->get('condition');
+        if (!isset($condition)) {
+            $modelKeys = (new $property['class']())::primaryKey();
+            foreach ($modelKeys as $modelKey) {
+                $primaryKey = Yii::$app->request->get($modelKey);
+                if (empty($primaryKey)) {
+                    break;
+                }
+                $condition[$modelKey] = Yii::$app->request->get($modelKey);
+            }
+        }
+
+        try {
+            $countDeletedModels = $this->deleteModels($property, $condition);
+        } catch (\Exception $e) {
+            return $this->asJson([
+                'status' => 400,
+                'errors' => $e->getMessage()
+            ]);
+        }
+
+
+        return $this->asJson([
+            'status' => 400,
+            'data' => [
+                'countDeletedModels' => $countDeletedModels
+            ],
+            'errors' => [],
+        ]);
     }
 
     public static function properties()
@@ -507,6 +551,7 @@ class SiteController extends Controller
                 }
 
                 if (empty($object->{$property['relationName']})) {
+                    $fieldsArray[$relation] = [];
                     continue;
                 }
                 if (!empty($property['multiple']) || !empty($property['viaTable'])) {
@@ -541,5 +586,31 @@ class SiteController extends Controller
                 return $name;
             }
         }
+    }
+
+    public function deleteModels($property, $condition)
+    {
+        $sql = $property['class']::find();
+        foreach ($condition as $singleCondition) {
+            $sql->andWhere($singleCondition);
+        }
+
+        $deleteModels = $sql->all();
+
+        if (empty($deleteModels)) {
+            return 0;
+        }
+        $countDeleteModels = 0;
+        foreach ($deleteModels as $deleteModel) {
+            try {
+                $deleteModel->delete();
+                $countDeleteModels++;
+            } catch (\ErrorException $e) {
+                throw new \Exception($e->getMessage());
+            }
+
+        }
+
+        return $countDeleteModels;
     }
 }
